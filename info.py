@@ -8,9 +8,23 @@ from transformers import pipeline
 # 1 - Initialize NLP pipelines
 @st.cache_resource
 def load_pipelines():
-    sentiment = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english", device=-1)
-    summarizer = pipeline("summarization", model="facebook/bart-large-cnn", device=-1, model_kwargs={"torch_dtype": "float32"})
-    ner = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple", model_kwargs={"torch_dtype": "float32"})
+    sentiment = pipeline(
+        "sentiment-analysis",
+        model="distilbert-base-uncased-finetuned-sst-2-english",
+        device=-1
+    )
+    summarizer = pipeline(
+        "summarization",
+        model="facebook/bart-large-cnn",
+        device=-1,
+        model_kwargs={"torch_dtype": "float32"}
+    )
+    ner = pipeline(
+        "ner",
+        model="dslim/bert-base-NER",
+        aggregation_strategy="simple",
+        model_kwargs={"torch_dtype": "float32"}
+    )
     return sentiment, summarizer, ner
 
 sentiment_pipeline, summarizer_pipeline, ner_pipeline = load_pipelines()
@@ -22,7 +36,11 @@ def chunk_text(text, chunk_size=512):
 # 3 - Clean unwanted lines
 def clean_text(raw_text):
     lines = raw_text.split('\n')
-    filtered = [line.strip() for line in lines if len(line.strip()) > 30 and "reddit" not in line.lower()]
+    filtered = [
+        line.strip()
+        for line in lines
+        if len(line.strip()) > 30 and "reddit" not in line.lower()
+    ]
     return "\n".join(filtered)
 
 # 4 - Extract article content using requests and BeautifulSoup
@@ -36,7 +54,8 @@ def extract_text_from_url(url):
         paragraphs = article.find_all("p") if article else soup.find_all("p")
 
         filtered_paragraphs = [
-            p.get_text(strip=True) for p in paragraphs
+            p.get_text(strip=True)
+            for p in paragraphs
             if len(p.get_text(strip=True)) > 50 and "samaritans" not in p.get_text(strip=True).lower()
         ]
 
@@ -45,7 +64,17 @@ def extract_text_from_url(url):
         st.error(f"Failed to fetch content: {e}")
         return ""
 
-# 5 - Analyze a URL
+# 5 - Merge subword tokens for clean display
+def merge_subwords(entity_words):
+    merged = []
+    for word in entity_words:
+        if merged and word.startswith("##"):
+            merged[-1] += word[2:]
+        else:
+            merged.append(word)
+    return merged
+
+# 6 - Analyze a URL
 def analyze_url(url):
     text = extract_text_from_url(url)
     if not text:
@@ -57,8 +86,12 @@ def analyze_url(url):
     overall_sentiment = max(sentiment_counts, key=sentiment_counts.get)
 
     summary = summarizer_pipeline(text[:1024])[0]['summary_text']
-    entities = ner_pipeline(text[:512])
-    top_entities = Counter([e['word'] for e in entities]).most_common(10)
+    entities_raw = ner_pipeline(text[:512])
+
+    # Process entities into merged clean names
+    raw_words = [e['word'] for e in entities_raw]
+    merged_words = merge_subwords(raw_words)
+    top_entities = Counter(merged_words).most_common(10)
 
     return {
         "url": url,
@@ -66,16 +99,17 @@ def analyze_url(url):
         "overall_sentiment": overall_sentiment,
         "sentiment_counts": dict(sentiment_counts),
         "sentiment_chunks": sentiments,
-        "entities": entities,
+        "entities": entities_raw,
         "top_entities": top_entities
     }
 
-# 6 - Streamlit App
+# 7 - Streamlit App
 st.set_page_config(page_title="Sentiment Analyzer", layout="wide")
 st.title("🌐 Web Article Sentiment Analyzer")
 st.markdown("Analyze sentiment, summary, and named entities from any news article.")
 
 url_input = st.text_input("Enter Article URL", placeholder="https://www.bbc.com/news/...")
+
 if st.button("Analyze") and url_input:
     with st.spinner("Analyzing... please wait ⏳"):
         try:
