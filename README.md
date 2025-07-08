@@ -1,4 +1,4 @@
-# WEB SENTIMENT ANALYZER
+# WEB ARTICLE SENTIMENT ANALYZER
 
 In today's world, the digital content is growing at an exponential rate making it difficult to interpret and process key information quickly. This project aims to solve this challenge by introducing intelligent machines that extract and analyzes useful content from user-provided web articles to deliver real time insights.
 
